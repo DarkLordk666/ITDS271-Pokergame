@@ -15,80 +15,118 @@ class _PokerTableState extends State<PokerTable> {
   List<poker.PokerCard> playerCards = [];
   List<poker.PokerCard> boardCards = [];
   List<poker.PokerCard> botCards = [];
-  Bot bot = Bot(); // Create Bot instance
+  Bot bot = Bot();
+
+  int playerChips = 10000;
+  int playerBetAmount = 0;
+  int tempBetAmount = 0;
 
   bool gameStarted = false;
 
+  void handleBet(int amount) {
+    setState(() {
+      if (playerChips >= amount) {
+        tempBetAmount += amount;
+        playerChips -= amount;
+      }
+    });
+
+    // Bot starts its turn after player confirms bet
+    bot.takeAction(boardCards); // Bot makes decision and takes action
+  }
+
+  void handleReduceBet(int amount) {
+    setState(() {
+      if (tempBetAmount >= amount) {
+        tempBetAmount -= amount;
+        playerChips += amount;
+      }
+    });
+  }
+
+  void confirmBet() {
+    setState(() {
+      playerBetAmount = tempBetAmount;
+      gameStarted = true;
+    });
+
+    // Bot starts its turn after player confirms bet
+    bot.takeAction(boardCards); // Bot makes decision and takes action
+  }
+
   void startGame() {
     setState(() {
-      // Reset game state
       playerCards.clear();
       boardCards.clear();
       botCards.clear();
+      playerBetAmount = 0;
+      tempBetAmount = 0;
       gameStarted = true;
 
-      // Deal 2 cards to player
       playerCards = deck.dealCards();
 
-      // Deal 2 cards to bot (hide from view)
       botCards = deck.dealCards();
 
-      // Deal board cards (Flop, Turn, River)
       if (boardCards.isEmpty) {
         boardCards = deck.dealFlop();
       } else if (boardCards.length < 5) {
         boardCards.add(deck.dealTurnOrRiver());
       }
 
-      // Bot makes decision and takes action
       bot.takeAction(boardCards);
 
-      // Determine winner and payout
       determineWinner();
     });
   }
 
   void determineWinner() {
     if (boardCards.length == 5) {
-      // Get best hand for player and bot
       List<poker.PokerCard> playerBestHand = getBestHand([...playerCards, ...boardCards]);
       List<poker.PokerCard> botBestHand = getBestHand([...botCards, ...boardCards]);
 
-      // Compare hands to determine winner
       int result = compareHands(playerBestHand, botBestHand);
       if (result > 0) {
         print('You win!');
-        // Handle player winning logic
       } else if (result < 0) {
         print('Bot wins!');
-        // Handle bot winning logic
       } else {
         print('It\'s a tie!');
-        // Handle tie logic
       }
     }
   }
 
   List<poker.PokerCard> getBestHand(List<poker.PokerCard> cards) {
-    // Implement logic to determine the best hand from the given cards
-    // This could involve checking for different combinations like flush, straight, etc.
-    // and returning the best combination
-    // Example:
-    // Sort cards by value
     cards.sort((a, b) => poker.PokerCard.getValueIndexForCard(b.value).compareTo(poker.PokerCard.getValueIndexForCard(a.value)));
-    // Check for royal flush, straight flush, etc.
-    // Implement more detailed logic based on poker hand rankings
-    return cards.sublist(0, 5); // Placeholder implementation, assuming just top 5 cards for simplicity
+    return cards.sublist(0, 5);
   }
 
   int compareHands(List<poker.PokerCard> hand1, List<poker.PokerCard> hand2) {
-    // Compare two poker hands and return:
-    // >0 if hand1 is better, <0 if hand2 is better, 0 if they are tied
-    // Implement comparison logic based on poker hand rankings
-    // Example:
-    // Compare hand rankings
-    // Return result based on comparison
     return 0; // Placeholder implementation
+  }
+
+  void fold() {
+    setState(() {
+      print('You folded.');
+      // Bot takes its turn after player folds
+      bot.takeAction(boardCards); // Bot makes decision and takes action
+    });
+  }
+
+  void check() {
+    setState(() {
+      print('You checked.');
+      // Bot takes its turn after player checks
+      bot.takeAction(boardCards); // Bot makes decision and takes action
+    });
+  }
+
+  void raise(int amount) {
+    setState(() {
+      handleBet(amount);
+      print('You raised by $amount.');
+      // Bot takes its turn after player raises
+      bot.takeAction(boardCards); // Bot makes decision and takes action
+    });
   }
 
   @override
@@ -114,89 +152,131 @@ class _PokerTableState extends State<PokerTable> {
             SizedBox(height: 20),
             Visibility(
               visible: gameStarted,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
+              child: Column(
                 children: [
-                  ElevatedButton(
-                    onPressed: () {
-                      // Fold logic
-                      print('You chose to Fold.');
-                    },
-                    child: Text('Fold'),
+                  if (botCards.isNotEmpty)
+                    Column(
+                      children: [
+                        Text(
+                          'Bot Cards:',
+                          style: TextStyle(fontSize: 20),
+                        ),
+                        SizedBox(height: 10),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            for (var card in botCards)
+                              PokerCardWidget(card: card, isHidden: true),
+                          ],
+                        ),
+                        SizedBox(height: 20),
+                        Text('Bot Chips: ${bot.botChips}'),
+                        SizedBox(height: 10),
+                        Text('Bot Bet: ${bot.botBet}'),
+                      ],
+                    ),
+                  SizedBox(height: 20),
+                  if (boardCards.isNotEmpty)
+                    Column(
+                      children: [
+                        Text(
+                          'Board:',
+                          style: TextStyle(fontSize: 20),
+                        ),
+                        SizedBox(height: 10),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            for (var card in boardCards)
+                              PokerCardWidget(card: card),
+                          ],
+                        ),
+                      ],
+                    ),
+                  SizedBox(height: 20),
+                  if (playerCards.isNotEmpty)
+                    Column(
+                      children: [
+                        Text(
+                          'Your Cards:',
+                          style: TextStyle(fontSize: 20),
+                        ),
+                        SizedBox(height: 10),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            for (var card in playerCards)
+                              PokerCardWidget(card: card),
+                          ],
+                        ),
+                        SizedBox(height: 20),
+                        Text('Your Chips: $playerChips'),
+                        SizedBox(height: 10),
+                        Text('Your Bet: $playerBetAmount'),
+                      ],
+                    ),
+                  SizedBox(height: 20),
+                  Visibility(
+                    visible: playerBetAmount == 0,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        ElevatedButton(
+                          onPressed: () => handleBet(100),
+                          child: Text('Bet 100'),
+                        ),
+                        SizedBox(width: 10),
+                        ElevatedButton(
+                          onPressed: () => handleBet(1000),
+                          child: Text('Bet 1000'),
+                        ),
+                        SizedBox(width: 10),
+                        ElevatedButton(
+                          onPressed: () => handleReduceBet(100),
+                          child: Text('Reduce 100'),
+                        ),
+                        SizedBox(width: 10),
+                        ElevatedButton(
+                          onPressed: () => handleReduceBet(1000),
+                          child: Text('Reduce 1000'),
+                        ),
+                      ],
+                    ),
                   ),
-                  SizedBox(width: 20),
-                  ElevatedButton(
-                    onPressed: () {
-                      // Check logic
-                      print('You chose to Check.');
-                    },
-                    child: Text('Check'),
+                  SizedBox(height: 20),
+                  Visibility(
+                    visible: tempBetAmount > 0,
+                    child: ElevatedButton(
+                      onPressed: confirmBet,
+                      child: Text('Confirm Bet'),
+                    ),
                   ),
-                  SizedBox(width: 20),
-                  ElevatedButton(
-                    onPressed: () {
-                      // Raise logic
-                      print('You chose to Raise.');
-                    },
-                    child: Text('Raise'),
+                  SizedBox(height: 20),
+                  Visibility(
+                    visible: playerBetAmount > 0,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        ElevatedButton(
+                          onPressed: fold,
+                          child: Text('Fold'),
+                        ),
+                        SizedBox(width: 10),
+                        ElevatedButton(
+                          onPressed: check,
+                          child: Text('Check'),
+                        ),
+                        SizedBox(width: 10),
+                        ElevatedButton(
+                          onPressed: () => raise(100),
+                          child: Text('Raise 100'),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
             ),
-            SizedBox(height: 20),
-            if (playerCards.isNotEmpty)
-              Column(
-                children: [
-                  Text(
-                    'Your Cards:',
-                    style: TextStyle(fontSize: 20),
-                  ),
-                  SizedBox(height: 10),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      for (var card in playerCards)
-                        PokerCardWidget(card: card),
-                    ],
-                  ),
-                ],
-              ),
-            SizedBox(height: 20),
-            if (boardCards.isNotEmpty)
-              Column(
-                children: [
-                  Text(
-                    'Board:',
-                    style: TextStyle(fontSize: 20),
-                  ),
-                  SizedBox(height: 10),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      for (var card in boardCards)
-                        PokerCardWidget(card: card),
-                    ],
-                  ),
-                ],
-              ),
-            SizedBox(height: 20),
-            if (botCards.isNotEmpty) // Display bot's cards
-              Column(
-                children: [
-                  Text(
-                    'Bot Cards:',
-                    style: TextStyle(fontSize: 20),
-                  ),
-                  SizedBox(height: 10),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      for (var card in botCards)
-                        PokerCardWidget(card: card, isHidden: true), // Show hidden cards for bot
-                    ],
-                  ),
-                ],
-              ),
           ],
         ),
       ),
@@ -242,18 +322,23 @@ class PokerCardWidget extends StatelessWidget {
 
 class Bot {
   List<poker.PokerCard> cards = [];
+  int _botBet = 0;
+  int _botChips = 10000; // Initial bot chips
+
+  int get botBet => _botBet;
+
+  int get botChips => _botChips;
 
   void takeAction(List<poker.PokerCard> boardCards) {
     Random random = Random();
 
     if (random.nextBool()) {
-      // Bot chooses to Fold or end the betting
-      // You can add other action conditions based on game rules
       print('Bot chooses to Fold.');
     } else {
-      // Bot chooses to Call or Raise based on game rules
-      // You can add other action conditions based on game rules
-      print('Bot chooses to Call or Raise.');
+      int raiseAmount = random.nextInt(1000) + 100;
+      _botBet += raiseAmount;
+      _botChips -= raiseAmount;
+      print('Bot chooses to Raise by $raiseAmount.');
     }
   }
 }
